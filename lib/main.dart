@@ -1,12 +1,25 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:http/http.dart' as http;
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart'; 
 
-void main() {
+import 'screens/SignInScreen.dart';
+import 'screens/SignUpScreen.dart';
+import 'screens/HomeScreen.dart';
+import 'screens/ReportScreen.dart';
+
+void main() async {
+  // 1. This MUST be here before Firebase initializes
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // 2. This wakes up Firebase
+  await Firebase.initializeApp();
+
   runApp(const GuidyApp());
 }
+
+const Color kPrimaryColor = Color(0xFF6DA4C2);
+const Color kAccentColor = Color(0xFFD4A373);
+const Color kBackgroundColor = Color(0xFFF0F4F8);
 
 class GuidyApp extends StatelessWidget {
   const GuidyApp({super.key});
@@ -14,103 +27,48 @@ class GuidyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'Guidy',
-      theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue)),
-      home: const MapScreen(),
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: kPrimaryColor),
+        useMaterial3: true,
+        scaffoldBackgroundColor: Colors.white,
+      ),
+      // We removed initialRoute and replaced it with the AuthGate
+      home: const AuthGate(),
+      routes: {
+        '/signin': (context) => const SignInScreen(),
+        '/signup': (context) => const SignUpScreen(),
+        '/home': (context) => const HomeScreen(),
+        '/report': (context) => const ReportScreen(),
+      },
     );
   }
 }
 
-class MapScreen extends StatefulWidget {
-  const MapScreen({super.key});
-
-  @override
-  State<MapScreen> createState() => _MapScreenState();
-}
-
-class _MapScreenState extends State<MapScreen> {
-  List<LatLng> routePoints = [];
-  bool isLoading = false;
-  String travelTime = "";
-
-  // Connects to your Python FastAPI server
-  Future<void> fetchRoute() async {
-    setState(() {
-      isLoading = true;
-    });
-
-    try {
-      // 10.0.2.2 is the Android Emulator's secret IP to reach your laptop's localhost
-      final response = await http.get(
-        Uri.parse('http://10.0.2.2:8000/api/route?start=Opera&end=Al%20Shohadaa'),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true) {
-          List<LatLng> newPoints = [];
-          for (var station in data['path']) {
-            newPoints.add(LatLng(station['lat'], station['lon']));
-          }
-          setState(() {
-            routePoints = newPoints;
-            travelTime = "${data['total_time_minutes']} min";
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint("Failed to fetch route: $e");
-    } finally {
-      setState(() {
-        isLoading = false;
-      });
-    }
-  }
+// --- THE AUTH GATE ---
+// This listens to Firebase and decides which screen to show on boot.
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(travelTime.isEmpty ? 'Guidy - Cairo Map' : 'ETA: $travelTime'),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
-      ),
-      body: FlutterMap(
-        options: const MapOptions(
-          initialCenter: LatLng(30.0444, 31.2357), // Sadat Station Area
-          initialZoom: 14.0,
-        ),
-        children: [
-          TileLayer(
-            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            userAgentPackageName: 'com.guidy.guidyApp',
-          ),
-          PolylineLayer(
-            polylines: [
-              Polyline(
-                points: routePoints,
-                strokeWidth: 5.0,
-                color: Colors.blueAccent,
-              ),
-            ],
-          ),
-          MarkerLayer(
-            markers: routePoints.map((point) => Marker(
-              point: point,
-              width: 15,
-              height: 15,
-              child: const DecoratedBox(
-                decoration: BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-              ),
-            )).toList(),
-          )
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: fetchRoute,
-        icon: isLoading ? const CircularProgressIndicator(color: Colors.white) : const Icon(Icons.directions_transit),
-        label: const Text("Find Route"),
-      ),
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        // Show a loading circle while checking Firebase
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator(color: kPrimaryColor)));
+        }
+        
+        // If the user's data exists, they are logged in. Send to Home!
+        if (snapshot.hasData) {
+          return const HomeScreen();
+        }
+        
+        // If not logged in, send to Sign In.
+        return const SignInScreen();
+      },
     );
   }
 }

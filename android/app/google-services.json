@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1006208450463",
+    "project_id": "guidy-19e46",
+    "storage_bucket": "guidy-19e46.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1006208450463:android:7693174b80b2543b5b87aa",
+        "android_client_info": {
+          "package_name": "com.guidy.guidy_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAteoz_9NPIhe_Ec2bCb341rr8xSViozC4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
