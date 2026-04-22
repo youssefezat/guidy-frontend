@@ -18,7 +18,7 @@ class _RouteOptionsScreenState extends State<RouteOptionsScreen> {
     final startEncoded = Uri.encodeComponent(widget.start.trim());
     final endEncoded = Uri.encodeComponent(widget.end.trim());
     
-    // Fetching the real route from your Python backend!
+    // Remember to use 10.0.2.2 for Android Emulator connecting to localhost
     final response = await http.get(Uri.parse('http://10.0.2.2:8000/api/route?start=$startEncoded&end=$endEncoded'));
     if (response.statusCode == 200) {
       return json.decode(response.body);
@@ -47,41 +47,42 @@ class _RouteOptionsScreenState extends State<RouteOptionsScreen> {
         future: _fetchOptions(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator(color: Color(0xFF6DA4C2)));
           } else if (snapshot.hasError || snapshot.data!['success'] == false) {
-            return Center(child: Text("Error: Could not find route. Ensure stations are spelled correctly.", style: TextStyle(color: Colors.red)));
+            return const Center(child: Padding(
+              padding: EdgeInsets.all(20.0),
+              child: Text("Error: Could not calculate route. Check your internet connection or station spelling.", style: TextStyle(color: Colors.red), textAlign: TextAlign.center),
+            ));
           }
 
           final data = snapshot.data!;
-          final List options = data['options'];
+          final List options = data['options'] ?? [];
 
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              const Text("Choose Your Route", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const Text("Available Metro Routes", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               const SizedBox(height: 15),
               
-              // We pass the full data package to the MapScreen when a card is tapped
-              _buildRouteCard(
-                context: context,
-                data: data,
-                title: "Fastest Route",
-                subtitle: "Optimized by ACO Algorithm",
-                color: const Color(0xFF6DA4C2),
-                icon: Icons.flash_on,
-                duration: "${options[0]['time']} min",
-                traffic: "Low", // Simulated API congestion
-              ),
-              _buildRouteCard(
-                context: context,
-                data: data,
-                title: "Alternative Route",
-                subtitle: "Standard algorithm",
-                color: const Color(0xFFD4A373),
-                icon: Icons.alt_route,
-                duration: "${options[1]['time']} min",
-                traffic: "Medium",
-              ),
+              // THE FIX: Dynamically generate cards based on the length of the list!
+              ...options.asMap().entries.map((entry) {
+                int index = entry.key;
+                var option = entry.value;
+                
+                // Alternate colors for UI flair if we ever add more options later
+                Color cardColor = index == 0 ? const Color(0xFF6DA4C2) : const Color(0xFFD4A373);
+                
+                return _buildRouteCard(
+                  context: context,
+                  data: data,
+                  title: option['type'] ?? 'Metro Route',
+                  subtitle: option['desc'] ?? '',
+                  color: cardColor,
+                  icon: Icons.directions_subway,
+                  duration: "${option['time']} min",
+                  traffic: option['traffic'] ?? 'Low',
+                );
+              }),
             ],
           );
         },
@@ -90,8 +91,11 @@ class _RouteOptionsScreenState extends State<RouteOptionsScreen> {
   }
 
   Widget _buildRouteCard({required BuildContext context, required Map<String, dynamic> data, required String title, required String subtitle, required Color color, required IconData icon, required String duration, required String traffic}) {
+    Color trafficColor = Colors.green;
+    if (traffic == "Medium") trafficColor = Colors.orange;
+    if (traffic == "Heavy") trafficColor = Colors.red;
+
     return GestureDetector(
-      // Navigating and passing the REAL points!
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MapScreen(pathData: data))),
       child: Card(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -124,10 +128,10 @@ class _RouteOptionsScreenState extends State<RouteOptionsScreen> {
             Padding(
               padding: const EdgeInsets.all(20),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround, // Space evenly without cost
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildStat(Icons.access_time, "Duration", duration),
-                  _buildStat(Icons.traffic, "Traffic", traffic),
+                  _buildStat(Icons.access_time, "Duration", duration, Colors.black),
+                  _buildStat(Icons.group, "Crowds", traffic, trafficColor), // Changed from 'Traffic' to 'Crowds' for Metro!
                 ],
               ),
             )
@@ -137,7 +141,7 @@ class _RouteOptionsScreenState extends State<RouteOptionsScreen> {
     );
   }
 
-  Widget _buildStat(IconData icon, String label, String val) {
+  Widget _buildStat(IconData icon, String label, String val, Color valueColor) {
     return Column(
       children: [
         Row(
@@ -148,7 +152,7 @@ class _RouteOptionsScreenState extends State<RouteOptionsScreen> {
           ],
         ),
         const SizedBox(height: 5),
-        Text(val, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        Text(val, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: valueColor)),
       ],
     );
   }
